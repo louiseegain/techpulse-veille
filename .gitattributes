@@ -1,0 +1,26 @@
+# Normaliser les fins de ligne pour tous les fichiers texte
+* text=auto
+
+# Forcer LF pour le code source (Python, shell, YAML, JSON, Markdown, etc.)
+*.py   text eol=lf
+*.sh   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+
+# Forcer CRLF pour les fichiers Windows
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# Ne pas toucher aux binaires
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.pdf  binary
+*.zip  binary
+*.exe  binary
+
+# Si tu utilises Jupyter
+*.ipynb text eol=lf
