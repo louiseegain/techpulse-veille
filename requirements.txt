@@ -1,0 +1,38 @@
+# Dépendances Python TechPulse (compatibles Airflow 2.7.3)
+
+# Web Scraping
+beautifulsoup4==4.12.2
+requests==2.31.0
+selenium==4.15.2
+scrapy==2.11.0
+lxml==4.9.3
+fake-useragent==1.4.0
+requests-html==0.10.0
+
+# Base de données 
+psycopg2-binary==2.9.9
+SQLAlchemy==1.4.50  
+alembic==1.12.1
+
+# Data processing
+pandas==2.1.2  
+numpy==1.24.4  
+
+# Monitoring et logging
+prometheus-client==0.18.0  
+structlog==23.2.0
+
+# Utilitaires
+python-dotenv==1.0.0
+schedule==1.2.0
+python-dateutil==2.8.2
+pytz==2023.3.post1  
+
+# Tests
+pytest==7.4.3
+pytest-cov==4.1.0
+
+# Dev tools
+black==23.11.0
+flake8==6.1.0
+pre-commit==3.5.0

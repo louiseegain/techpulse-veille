@@ -1,0 +1,198 @@
+# docker-compose.yml - Configuration complète TechPulse
+
+services:
+  # Base de données PostgreSQL
+  postgres:
+    image: postgres:15
+    container_name: techpulse_postgres
+    environment:
+      POSTGRES_DB: techpulse_veille
+      POSTGRES_USER: techpulse
+      POSTGRES_PASSWORD: techpulse2024
+    ports:
+      - "5433:5432"  # Port externe 5433 au lieu de 5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - techpulse_network
+    restart: unless-stopped
+
+  # Redis pour Airflow
+  redis:
+    image: redis:7-alpine
+    container_name: techpulse_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - techpulse_network
+    restart: unless-stopped
+
+  # Initialisation Airflow (à exécuter une seule fois)
+  airflow-init:
+    image: apache/airflow:2.7.3-python3.11
+    container_name: techpulse_airflow_init
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://techpulse:techpulse2024@postgres:5432/airflow_db
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://techpulse:techpulse2024@postgres:5432/airflow_db
+      AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+      AIRFLOW__CORE__FERNET_KEY: 'UKMzEm3yIuFYEq-y3aQKaQZhVtYqLKJHEgLIlYGQ5Ms='
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: admin
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./airflow/logs:/opt/airflow/logs
+      - ./requirements.txt:/opt/airflow/requirements.txt
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - techpulse_network
+    command: >
+      bash -c "
+        pip install -r /opt/airflow/requirements.txt &&
+        airflow db init &&
+        airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@techpulse.com --password admin
+      "
+
+  # Airflow Webserver
+  airflow-webserver:
+    image: apache/airflow:2.7.3-python3.11
+    container_name: techpulse_airflow_webserver
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://techpulse:techpulse2024@postgres:5432/airflow_db
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://techpulse:techpulse2024@postgres:5432/airflow_db
+      AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+      AIRFLOW__CORE__FERNET_KEY: 'UKMzEm3yIuFYEq-y3aQKaQZhVtYqLKJHEgLIlYGQ5Ms='
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__WEBSERVER__SECRET_KEY: 'techpulse_secret_key_2024'
+      PYTHONPATH: /opt/airflow/plugins:/opt/airflow/dags
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./airflow/logs:/opt/airflow/logs
+      - ./scrapers:/opt/airflow/scrapers
+      - ./requirements.txt:/opt/airflow/requirements.txt
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - techpulse_network
+    restart: unless-stopped
+    command: >
+      bash -c "
+        pip install -r /opt/airflow/requirements.txt &&
+        airflow webserver
+      "
+
+  # Airflow Scheduler
+  airflow-scheduler:
+    image: apache/airflow:2.7.3-python3.11
+    container_name: techpulse_airflow_scheduler
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://techpulse:techpulse2024@postgres:5432/airflow_db
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://techpulse:techpulse2024@postgres:5432/airflow_db
+      AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+      AIRFLOW__CORE__FERNET_KEY: 'UKMzEm3yIuFYEq-y3aQKaQZhVtYqLKJHEgLIlYGQ5Ms='
+      PYTHONPATH: /opt/airflow/plugins:/opt/airflow/dags
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./airflow/logs:/opt/airflow/logs
+      - ./scrapers:/opt/airflow/scrapers
+      - ./requirements.txt:/opt/airflow/requirements.txt
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - techpulse_network
+    restart: unless-stopped
+    command: >
+      bash -c "
+        pip install -r /opt/airflow/requirements.txt &&
+        airflow scheduler
+      "
+
+  # Worker Airflow
+  airflow-worker:
+    image: apache/airflow:2.7.3-python3.11
+    container_name: techpulse_airflow_worker
+    environment:
+      AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://techpulse:techpulse2024@postgres:5432/airflow_db
+      AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://techpulse:techpulse2024@postgres:5432/airflow_db
+      AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+      AIRFLOW__CORE__FERNET_KEY: 'UKMzEm3yIuFYEq-y3aQKaQZhVtYqLKJHEgLIlYGQ5Ms='
+      PYTHONPATH: /opt/airflow/plugins:/opt/airflow/dags
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./airflow/logs:/opt/airflow/logs
+      - ./scrapers:/opt/airflow/scrapers
+      - ./requirements.txt:/opt/airflow/requirements.txt
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - techpulse_network
+    restart: unless-stopped
+    command: >
+      bash -c "
+        pip install -r /opt/airflow/requirements.txt &&
+        airflow celery worker
+      "
+
+  # Grafana pour monitoring
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: techpulse_grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: techpulse2024
+      GF_USERS_ALLOW_SIGN_UP: false
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana_dashboards:/etc/grafana/provisioning/dashboards
+    networks:
+      - techpulse_network
+    restart: unless-stopped
+
+  # Prometheus pour métriques
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: techpulse_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - techpulse_network
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+
+volumes:
+  postgres_data:
+  grafana_data:
+  prometheus_data:
+
+networks:
+  techpulse_network:
+    driver: bridge
